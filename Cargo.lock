@@ -19,6 +19,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bear_island_lib"
+version = "0.1.0"
+dependencies = [
+ "raylib",
+]
+
+[[package]]
+name = "bear_island_server"
+version = "0.1.0"
+
+[[package]]
 name = "bindgen"
 version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
