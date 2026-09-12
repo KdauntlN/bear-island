@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["bear_island_client", "bear_island_server", "common"]
+members = ["client", "server", "common", "room_host"]

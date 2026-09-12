@@ -1,7 +1,9 @@
 [package]
-name = "common"
+name = "client"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+raylib = "6.0.0"
+common = { path = "../common" }
 wincode = {version = "0.6.1", features = ["derive"]}
