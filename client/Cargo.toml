@@ -3,7 +3,10 @@ name = "client"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+opt-level = 3
+
 [dependencies]
-raylib = "6.0.0"
+bevy = "0.19.1"
 common = { path = "../common" }
-wincode = {version = "0.6.1", features = ["derive"]}
+wincode = {version = "0.6.1", features = ["derive"] }
