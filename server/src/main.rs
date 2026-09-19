@@ -7,10 +7,12 @@ use std::{io, process::{self, Command}};
 
 fn main() {
     let mut streams: Vec<TcpStream> = Vec::new();
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap_or_else(|e| {
+    let listener = TcpListener::bind("0.0.0.0:27015").unwrap_or_else(|e| {
         eprintln!("Could not bind TCP listener: {e}");
         process::exit(1);
     });
+
+    println!("Server listening at {}", listener.local_addr().unwrap());
 
     listener.set_nonblocking(true).unwrap_or_else(|e| {
         eprintln!("Could not set TCP listener to nonblocking {e}");
@@ -44,16 +46,23 @@ fn main() {
 }
 
 fn create_room() -> io::Result<String> {
-    let mut room_host = Command::new("./target/debug/room_host.exe")
+    println!("Attempting to create room");
+    let mut room_host = Command::new("./room_host")
         .stdout(Stdio::piped())
         .spawn()?;
 
+    println!("Room process spawned");
+
     let stdout = room_host.stdout.take().ok_or(io::Error::new(ErrorKind::BrokenPipe, "Could not open child stdout"))?;
     let mut reader = BufReader::new(stdout);
-    let mut addr = String::new();
+    let mut port = String::new();
 
-    reader.read_line(&mut addr)?;
-    Ok(addr.trim().to_string())
+    reader.read_line(&mut port)?;
+
+    let mut address = String::from("152.69.167.180:");
+    address.push_str(port.trim());
+
+    Ok(address)
 }
 
 fn handle_new_connections(listener: &TcpListener, streams: &mut Vec<TcpStream>) -> io::Result<()> {
@@ -102,6 +111,7 @@ fn send_message(streams: &mut Vec<TcpStream>, addr: SocketAddr, message: ServerM
     for stream in streams {
         if stream.local_addr()? == addr {
             stream.write(&wincode::serialize(&message).expect("Failed to serialize message"))?;
+            stream.flush()?;
         }
     }
 

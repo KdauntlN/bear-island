@@ -1,10 +1,27 @@
-use std::{io, net::TcpListener};
+use std::{io::{self}, net::TcpListener, process};
 
 fn main() -> io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    let addr = listener.local_addr()?;
+    let listener = match bind_listener() {
+        Some(listener) => listener,
+        None => {
+            print!("\n");
+            process::exit(1);
+        },
+    };
 
-    println!("{addr}\n");
+    print!("{}\n", listener.local_addr()?.port());
 
     Ok(())
+}
+
+fn bind_listener() -> Option<TcpListener> {
+    for port in 27016..27115 {
+        if let Ok(listener) = TcpListener::bind(("0.0.0.0", port)) {
+            return Some(listener);
+        } else {
+            continue;
+        }
+    }
+
+    None
 }

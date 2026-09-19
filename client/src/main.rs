@@ -142,7 +142,7 @@ fn check_room_creation(mut commands: Commands, mut task: Option<ResMut<NetworkTa
 
 async fn create_room() -> io::Result<String> {
     println!("Sending create room message");
-    let mut stream = TcpStream::connect("127.0.0.1:7878")?;
+    let mut stream = TcpStream::connect("152.69.167.180:27015")?;
     stream.write(&wincode::serialize(&ClientMessage::CreateRoom).unwrap())?;
 
     let mut response = [0 as u8; 128];
@@ -154,6 +154,6 @@ async fn create_room() -> io::Result<String> {
         stream.shutdown(std::net::Shutdown::Both)?;
         return Ok(address);
     } else {
-        panic!("Invalid response");
+        panic!("Error creating room");
     }
 }

@@ -10,4 +10,7 @@ pub enum ServerMessage {
     RoomCreated {
         address: String,
     },
+    RoomCreationError {
+        error: String,
+    }
 }
