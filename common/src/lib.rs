@@ -8,7 +8,7 @@ pub enum ClientMessage {
 #[derive(Debug, SchemaRead, SchemaWrite)]
 pub enum ServerMessage {
     RoomCreated {
-        address: String,
+        code: String,
     },
     RoomCreationError {
         error: String,

@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 common = { path = "../common/" }
 wincode = {version = "0.6.1", features = ["derive"] }
+rand = "0.10.2"

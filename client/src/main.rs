@@ -3,6 +3,7 @@ use common::{ServerMessage, ClientMessage};
 
 use std::net::{TcpStream};
 use std::io::{self, Read, Write};
+use std::time::Duration;
 
 use bevy::{prelude::*, tasks};
 use bevy::tasks::{IoTaskPool, Task};
@@ -23,7 +24,12 @@ fn main() {
         )
         .init_state::<GameState>()
         .add_systems(OnEnter(GameState::MainMenu), setup)
-        .add_systems(Update, (button_system, check_room_creation).run_if(in_state(GameState::MainMenu)))
+        .add_systems(OnEnter(GameState::Loading), loading_screen)
+        .add_systems(Update, (create_room_button, quit_button).run_if(in_state(GameState::MainMenu)))
+        .add_systems(Update, check_room_creation.run_if(
+            in_state(GameState::MainMenu)
+                .or_else(in_state(GameState::Loading))   
+        ))
         .run();
 }
 
@@ -31,13 +37,19 @@ fn main() {
 enum GameState {
     #[default]
     MainMenu,
-    JoiningRoom,
+    Loading,
     Lobby,
     Game,
 }
 
 #[derive(Component)]
 struct CreateRoomButton;
+
+#[derive(Component)]
+struct JoinRoomButton;
+
+#[derive(Component)]
+struct QuitButton;
 
 #[derive(Component)]
 struct MainMenu;
@@ -51,8 +63,10 @@ struct RoomInfo {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Camera
-    commands.spawn(Camera2d);
+    commands.spawn((
+        DespawnOnExit(GameState::MainMenu),
+        Camera2d
+    ));
 
     commands.spawn((
         Sprite {
@@ -65,6 +79,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         MainMenu,
+        DespawnOnExit(GameState::MainMenu),
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
@@ -94,6 +109,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ));
 
         parent.spawn((
+            Button,
+            JoinRoomButton,
             Node {
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -107,15 +124,54 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_child((
             Text::new("Join Room"),
         ));
+
+        parent.spawn((
+            Button,
+            QuitButton,
+            Node {
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                width: Val::Px(300.0),
+                height: Val::Px(50.0),
+                border_radius: BorderRadius::all(Val::Px(10.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK),
+        ))
+        .with_child((
+            Text::new("Quit"),
+        ));
     });
 }
 
-fn button_system(
+fn loading_screen(mut commands: Commands) {
+    commands.spawn((
+        DespawnOnExit(GameState::Loading),
+        Camera2d
+    ));
+
+    commands.spawn((
+        DespawnOnExit(GameState::Loading),
+        Node {
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+    )).with_child((
+        Text::new("Loading..."),
+    ));
+}
+
+fn create_room_button(
     mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<CreateRoomButton>)>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     for interaction in &query {
         if *interaction == Interaction::Pressed {
+            next_state.set(GameState::Loading);
             let task = IoTaskPool::get().spawn(create_room());
 
             commands.insert_resource(NetworkTask(task));
@@ -123,19 +179,31 @@ fn button_system(
     }
 }
 
-fn check_room_creation(mut commands: Commands, mut task: Option<ResMut<NetworkTask>>) {
+fn quit_button(
+    query: Query<&Interaction, (Changed<Interaction>, With<QuitButton>)>,
+    mut app_exit_events: MessageWriter<AppExit>,
+) {
+    for interaction in &query {
+        if *interaction == Interaction::Pressed {
+            app_exit_events.write(AppExit::Success);
+        }
+    }
+}
+
+fn check_room_creation(mut commands: Commands, task: Option<ResMut<NetworkTask>>, mut next_state: ResMut<NextState<GameState>>) {
     if let Some(mut task) = task {
         if let Some(result) = tasks::block_on(tasks::poll_once(&mut task.0)) {
             match result {
-                Ok(addr) => {
-                    println!("Room was created at address {addr}");
-                    commands.remove_resource::<NetworkTask>();
+                Ok(code) => {
+                    println!("Room was created with code: {code}");
+                    next_state.set(GameState::MainMenu);
                 },
                 Err(e) => {
                     println!("There was an error: {e}");
-                    commands.remove_resource::<NetworkTask>();
+                    next_state.set(GameState::MainMenu);
                 },
             }
+            commands.remove_resource::<NetworkTask>();
         }
     }
 }
@@ -143,6 +211,7 @@ fn check_room_creation(mut commands: Commands, mut task: Option<ResMut<NetworkTa
 async fn create_room() -> io::Result<String> {
     println!("Sending create room message");
     let mut stream = TcpStream::connect("152.69.167.180:27015")?;
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     stream.write(&wincode::serialize(&ClientMessage::CreateRoom).unwrap())?;
 
     let mut response = [0 as u8; 128];
@@ -150,9 +219,9 @@ async fn create_room() -> io::Result<String> {
 
     let response = wincode::deserialize::<ServerMessage>(&response).unwrap();
 
-    if let ServerMessage::RoomCreated { address } = response {
+    if let ServerMessage::RoomCreated { code } = response {
         stream.shutdown(std::net::Shutdown::Both)?;
-        return Ok(address);
+        return Ok(code);
     } else {
         panic!("Error creating room");
     }
