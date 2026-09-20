@@ -1,8 +1,8 @@
 use bevy::window::WindowMode;
 use common::{ServerMessage, ClientMessage};
 
-use std::net::{TcpStream};
-use std::io::{self, Read, Write};
+use std::net::{Shutdown, TcpStream};
+use std::io::{self, Read, Write, BufReader, BufWriter, ErrorKind};
 use std::time::Duration;
 
 use bevy::{prelude::*, tasks};
@@ -38,6 +38,7 @@ enum GameState {
     #[default]
     MainMenu,
     Loading,
+    JoiningRoom,
     Lobby,
     Game,
 }
@@ -210,19 +211,64 @@ fn check_room_creation(mut commands: Commands, task: Option<ResMut<NetworkTask>>
 
 async fn create_room() -> io::Result<String> {
     println!("Sending create room message");
-    let mut stream = TcpStream::connect("152.69.167.180:27015")?;
+    let stream = TcpStream::connect("152.69.167.180:27015")?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-    stream.write(&wincode::serialize(&ClientMessage::CreateRoom).unwrap())?;
 
-    let mut response = [0 as u8; 128];
-    stream.read(&mut response)?;
+    let mut buf_writer = BufWriter::new(stream);
 
-    let response = wincode::deserialize::<ServerMessage>(&response).unwrap();
+    let message = wincode::serialize(&ClientMessage::CreateRoom).unwrap();
+    let size = message.len().to_be_bytes();
 
-    if let ServerMessage::RoomCreated { code } = response {
-        stream.shutdown(std::net::Shutdown::Both)?;
-        return Ok(code);
-    } else {
-        panic!("Error creating room");
+    buf_writer.write(&size)?;
+    buf_writer.write(&wincode::serialize(&ClientMessage::CreateRoom).unwrap())?;
+    buf_writer.flush()?;
+
+    let stream = buf_writer.into_inner()?;
+    let mut buf_reader = BufReader::new(stream);
+
+    let mut size_bytes = [0 as u8; 8];
+    buf_reader.read_exact(&mut size_bytes)?;
+
+    let size = usize::from_be_bytes(size_bytes);
+    let mut response_bytes = vec![0; size];
+
+    buf_reader.read_exact(&mut response_bytes)?;
+
+    let response = match wincode::deserialize::<ServerMessage>(&response_bytes) {
+        Ok(message) => message,
+        Err(_) => {
+            return Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "Response from server was invalid"
+            ));
+        }
+    };
+
+    let stream = buf_reader.into_inner();
+    stream.shutdown(Shutdown::Both)?;
+
+    match response {
+        ServerMessage::RoomCreated { code } => {
+            Ok(code)
+        },
+        ServerMessage::RoomCreationError { error } => {
+            return Err(
+                io::Error::new(
+                    ErrorKind::Other,
+                    error)
+            );
+        },
+        _ => {
+            return Err(
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    "Invalid response from server",
+                )
+            );
+        }
     }
+}
+
+async fn join_room(code: String) -> io::Result<RoomInfo> {
+    todo!();
 }

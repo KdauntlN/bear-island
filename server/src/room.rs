@@ -4,13 +4,13 @@ use std::{
 
 use rand::RngExt;
 
-const ALPHABET: &[u8] = b"ABCDEFGHIJMNPQRSTUVWXYZ23456789";
+const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 pub struct RoomHandle {
-    room_code: String,
-    address: SocketAddr,
-    player_count: u16,
-    alive: bool,
+    pub room_code: String,
+    pub address: SocketAddr,
+    pub full: bool,
+    pub alive: bool,
 }
 
 impl RoomHandle {
@@ -35,7 +35,7 @@ impl RoomHandle {
             Self {
                 room_code: room_code.clone(),
                 address,
-                player_count: 0,
+                full: false,
                 alive: false,
             },
             room_code

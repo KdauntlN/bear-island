@@ -1,4 +1,4 @@
-use common::{ServerMessage, ClientMessage};
+use common::{ServerMessage, ClientMessage, JoinError};
 use server::room::RoomHandle;
 
 use std::collections::HashMap;
@@ -17,7 +17,8 @@ fn main() {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        if let Err(_) = handle_connection(stream, &mut rooms) {
+        if let Err(e) = handle_connection(stream, &mut rooms) {
+            eprintln!("There was an error with the connection: {e};");
             continue;
         }
     }
@@ -35,9 +36,9 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
     buf_reader.read_exact(&mut message)?;
 
     if let Ok(message) = wincode::deserialize::<ClientMessage>(&message) {
-        match message {
+        let response = match message {
             ClientMessage::CreateRoom => {
-                let response = match RoomHandle::new() {
+                match RoomHandle::new() {
                     Ok((mut room, mut code)) => {
                         while rooms.contains_key(&code) {
                             code = room.regenerate_code();
@@ -50,15 +51,32 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
                     Err(e) => {
                         ServerMessage::RoomCreationError { error: e.to_string() }
                     }
-                };
-
-                let stream = buf_reader.into_inner();
-                let mut buf_writer = BufWriter::new(stream);
-
-                buf_writer.write(&wincode::serialize(&response).expect("Failed to serialise message"))?;
-                buf_writer.flush()?;
+                }
+            },
+            ClientMessage::JoinRoom { code } => {
+                match rooms.get(&code) {
+                    Some(room) if !room.full => {
+                        ServerMessage::RoomFound { address: room.address }
+                    },
+                    Some(_) => {
+                        ServerMessage::RoomJoinError { reason: JoinError::RoomFull }
+                    },
+                    None => {
+                        ServerMessage::RoomJoinError { reason: JoinError::RoomFull }
+                    }
+                }
             }
-        }
+        };
+
+        let stream = buf_reader.into_inner();
+        let mut buf_writer = BufWriter::new(stream);
+
+        let message = wincode::serialize(&response).expect("Failed to serialise message");
+        let size = message.len().to_be_bytes();
+
+        buf_writer.write(&size)?;
+        buf_writer.write(&message)?;
+        buf_writer.flush()?;
     } else {
         return Err(io::Error::new(
             ErrorKind::InvalidData,
