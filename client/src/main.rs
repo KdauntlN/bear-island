@@ -220,7 +220,7 @@ async fn create_room() -> io::Result<String> {
     let size = message.len().to_be_bytes();
 
     buf_writer.write(&size)?;
-    buf_writer.write(&wincode::serialize(&ClientMessage::CreateRoom).unwrap())?;
+    buf_writer.write(&message)?;
     buf_writer.flush()?;
 
     let stream = buf_writer.into_inner()?;
