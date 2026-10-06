@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use wincode::{SchemaRead, SchemaWrite};
 
 #[derive(Debug, SchemaRead, SchemaWrite)]
-pub enum ClientMessage {
+pub enum ClientRequest {
     CreateRoom,
     JoinRoom {
         code: String,
@@ -11,7 +11,7 @@ pub enum ClientMessage {
 }
 
 #[derive(Debug, SchemaRead, SchemaWrite)]
-pub enum ServerMessage {
+pub enum ServerResponse {
     RoomCreated {
         code: String,
     },

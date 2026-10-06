@@ -1,4 +1,4 @@
-use common::{ServerMessage, ClientMessage, JoinError};
+use common::{ServerResponse, ClientRequest, JoinError};
 use server::room::RoomHandle;
 
 use std::collections::HashMap;
@@ -35,9 +35,9 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
     let mut message: Vec<u8> = vec![0; message_size];
     buf_reader.read_exact(&mut message)?;
 
-    if let Ok(message) = wincode::deserialize::<ClientMessage>(&message) {
+    if let Ok(message) = wincode::deserialize::<ClientRequest>(&message) {
         let response = match message {
-            ClientMessage::CreateRoom => {
+            ClientRequest::CreateRoom => {
                 match RoomHandle::new() {
                     Ok((mut room, mut code)) => {
                         while rooms.contains_key(&code) {
@@ -46,23 +46,23 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
 
                         rooms.insert(code.clone(), room);
 
-                        ServerMessage::RoomCreated { code }
+                        ServerResponse::RoomCreated { code }
                     },
                     Err(e) => {
-                        ServerMessage::RoomCreationError { error: e.to_string() }
+                        ServerResponse::RoomCreationError { error: e.to_string() }
                     }
                 }
             },
-            ClientMessage::JoinRoom { code } => {
+            ClientRequest::JoinRoom { code } => {
                 match rooms.get(&code) {
                     Some(room) if !room.full => {
-                        ServerMessage::RoomFound { address: room.address }
+                        ServerResponse::RoomFound { address: room.address }
                     },
                     Some(_) => {
-                        ServerMessage::RoomJoinError { reason: JoinError::RoomFull }
+                        ServerResponse::RoomJoinError { reason: JoinError::RoomFull }
                     },
                     None => {
-                        ServerMessage::RoomJoinError { reason: JoinError::RoomFull }
+                        ServerResponse::RoomJoinError { reason: JoinError::RoomFull }
                     }
                 }
             }

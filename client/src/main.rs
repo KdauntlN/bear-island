@@ -1,5 +1,10 @@
 use bevy::window::WindowMode;
-use common::{ServerMessage, ClientMessage};
+use common::{ServerResponse, ClientRequest};
+use client::{
+    ui::UiPlugin,
+    network::NetworkPlugin,
+    game::GamePlugin,
+};
 
 use std::net::{Shutdown, TcpStream};
 use std::io::{self, Read, Write, BufReader, BufWriter, ErrorKind};
@@ -10,37 +15,17 @@ use bevy::tasks::{IoTaskPool, Task};
 
 fn main() {
     App::new()
-        .add_plugins(
+        .add_plugins((
             DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Bear Island".into(),
-                    mode: WindowMode::BorderlessFullscreen(
-                        MonitorSelection::Primary
-                    ),
-                    ..default()
-                }),
+                primary_window: None,
+                exit_condition: bevy::window::ExitCondition::DontExit,
                 ..default()
-            })
-        )
-        .init_state::<GameState>()
-        .add_systems(OnEnter(GameState::MainMenu), setup)
-        .add_systems(OnEnter(GameState::Loading), loading_screen)
-        .add_systems(Update, (create_room_button, quit_button).run_if(in_state(GameState::MainMenu)))
-        .add_systems(Update, check_room_creation.run_if(
-            in_state(GameState::MainMenu)
-                .or_else(in_state(GameState::Loading))   
+            }),
+            UiPlugin,
+            NetworkPlugin,
+            GamePlugin,
         ))
         .run();
-}
-
-#[derive(States, Debug, Hash, Eq, PartialEq, Clone, Copy, Default)]
-enum GameState {
-    #[default]
-    MainMenu,
-    Loading,
-    JoiningRoom,
-    Lobby,
-    Game,
 }
 
 #[derive(Component)]
@@ -63,7 +48,7 @@ struct RoomInfo {
     code: String,
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+/* fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         DespawnOnExit(GameState::MainMenu),
         Camera2d
@@ -216,7 +201,7 @@ async fn create_room() -> io::Result<String> {
 
     let mut buf_writer = BufWriter::new(stream);
 
-    let message = wincode::serialize(&ClientMessage::CreateRoom).unwrap();
+    let message = wincode::serialize(&ClientRequest::CreateRoom).unwrap();
     let size = message.len().to_be_bytes();
 
     buf_writer.write(&size)?;
@@ -234,7 +219,7 @@ async fn create_room() -> io::Result<String> {
 
     buf_reader.read_exact(&mut response_bytes)?;
 
-    let response = match wincode::deserialize::<ServerMessage>(&response_bytes) {
+    let response = match wincode::deserialize::<ServerResponse>(&response_bytes) {
         Ok(message) => message,
         Err(_) => {
             return Err(io::Error::new(
@@ -248,10 +233,10 @@ async fn create_room() -> io::Result<String> {
     stream.shutdown(Shutdown::Both)?;
 
     match response {
-        ServerMessage::RoomCreated { code } => {
+        ServerResponse::RoomCreated { code } => {
             Ok(code)
         },
-        ServerMessage::RoomCreationError { error } => {
+        ServerResponse::RoomCreationError { error } => {
             return Err(
                 io::Error::new(
                     ErrorKind::Other,
@@ -272,3 +257,4 @@ async fn create_room() -> io::Result<String> {
 async fn join_room(code: String) -> io::Result<RoomInfo> {
     todo!();
 }
+    */

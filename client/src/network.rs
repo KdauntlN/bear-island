@@ -22,17 +22,17 @@ impl Plugin for NetworkPlugin {
 struct TcpThread {
     thread: JoinHandle<()>,
     tx: Sender<Box<dyn GameEvent + Send>>,
-    rx: Mutex<Receiver<ServerMessage>>,
+    rx: Mutex<Receiver<ServerResponse>>,
 }
 
 impl TcpThread {
     fn new() -> Self {
         let (tx_a, rx_a) = mpsc::channel::<Box<dyn GameEvent + Send>>();
-        let (tx_b, rx_b) = mpsc::channel::<ServerMessage>();
+        let (tx_b, rx_b) = mpsc::channel::<ServerResponse>();
 
         let thread = thread::spawn(move || {
             let tcp_handler = TcpHandler::new(tx_b, rx_a);
-            tcp_handler.run();
+            // tcp_handler.run();
         });
 
         Self {
@@ -44,12 +44,12 @@ impl TcpThread {
 }
 
 struct TcpHandler {
-    tx: Sender<ServerMessage>,
+    tx: Sender<ServerResponse>,
     rx: Receiver<Box<dyn GameEvent + Send>>,
 }
 
 impl TcpHandler {
-    fn new(tx: Sender<ServerMessage>, rx: Receiver<Box<dyn GameEvent + Send>>) -> Self {
+    fn new(tx: Sender<ServerResponse>, rx: Receiver<Box<dyn GameEvent + Send>>) -> Self {
         Self {
             tx,
             rx
