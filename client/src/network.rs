@@ -70,7 +70,7 @@ struct TcpHandler {
 impl TcpHandler {
     fn new(tx: Sender<ServerEvent>, rx: Receiver<ClientEvent>) -> Self {
         Self {
-            stream: TcpStream::connect("152.69.167.180:17015").expect("Failed to connect to server"),
+            stream: TcpStream::connect("152.69.167.180:27015").expect("Failed to connect to server"),
             tx,
             rx
         }
@@ -84,8 +84,15 @@ impl TcpHandler {
                     self.stream = TcpStream::connect(address).unwrap_or_else(|e| {
                         // try to connect back to server as fallback
                         eprintln!("Failed to connect to room: {e}");
-                        TcpStream::connect("152.69.167.180:17015").expect("Failed to connect to server")
+                        TcpStream::connect("152.69.167.180:27015").expect("Failed to connect to server")
                     });
+
+                    if let Some(response) = self.check_connection(&self.stream) {
+                        let message = ServerEvent::from(response);
+                        self.tx.send(message).expect("Failed to send message");
+                    }
+
+                    continue;
                 }
 
                 let request = ClientRequest::from(message);
@@ -95,7 +102,7 @@ impl TcpHandler {
 
                 if let Some(response) = self.check_connection(&self.stream) {
                     let message = ServerEvent::from(response);
-                    let _ = self.tx.send(message);
+                    self.tx.send(message).expect("Failed to send message");
                 }
             }
         }
@@ -142,12 +149,12 @@ fn send_messages(mut reader: MessageReader<ClientEvent>, handler: Res<NetworkThr
 
 fn receive_messages(mut writer: MessageWriter<ServerEvent>, handler: Res<NetworkThreadHandler>) {
     if let Ok(lock) = handler.tcp_rx.lock() {
-        let Ok(message) = lock.recv() else { return; };
+        let Ok(message) = lock.try_recv() else { return; };
         writer.write(message);
     }
 
     if let Ok(lock) = handler.udp_rx.lock() {
-        let Ok(message) = lock.recv() else { return; };
+        let Ok(message) = lock.try_recv() else { return; };
         writer.write(message);
     }
 }

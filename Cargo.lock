@@ -4553,6 +4553,10 @@ dependencies = [
 [[package]]
 name = "room_host"
 version = "0.1.0"
+dependencies = [
+ "common",
+ "wincode",
+]
 
 [[package]]
 name = "rustc-hash"

@@ -2,6 +2,7 @@ use client::{
     ui::UiPlugin,
     network::NetworkPlugin,
     game::GamePlugin,
+    lobby::LobbyPlugin,
 };
 
 use bevy::prelude::*;
@@ -17,6 +18,7 @@ fn main() {
             UiPlugin,
             NetworkPlugin,
             GamePlugin,
+            LobbyPlugin,
         ))
         .run();
 }

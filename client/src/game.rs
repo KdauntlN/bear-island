@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 
 use bevy::{asset::LoadState, prelude::*, window::{PrimaryWindow, WindowMode, WindowResolution}};
 
-use crate::ui::messages::ServerEvent;
+use crate::ui::messages::{ClientEvent, ServerEvent};
 
 pub struct GamePlugin;
 
@@ -57,8 +57,16 @@ pub struct UiTextures {
 #[derive(Resource)]
 struct UnloadedImages(Vec<Handle<Image>>);
 
+#[derive(Resource)]
+struct LobbyInfo {
+    code: String,
+}
+
 #[derive(Component)]
 struct LoadingText;
+
+#[derive(Component)]
+struct BackgroundImage;
 
 // pretty much just loads assets, could rename
 fn startup(
@@ -109,13 +117,14 @@ fn draw_main_menu_bg(
 
     println!("{}*{}", window.width(), window.height());
 
-    commands.spawn(
+    commands.spawn((
+        BackgroundImage,
         Sprite {
             image: backgrounds.blurred.clone(),
             custom_size: Some(Vec2::new(window.width(), window.height())),
             ..default()
         }
-    );
+    ));
 
     *has_run = true;
 }
@@ -192,10 +201,17 @@ fn check_assets(
     images.0 = updated_vec;
 }
 
-fn check_server_events(mut reader: MessageReader<ServerEvent>, mut next_state: ResMut<NextState<LoadingState>>) {
+fn check_server_events(
+    mut reader: MessageReader<ServerEvent>,
+    mut writer: MessageWriter<ClientEvent>,
+    mut next_state: ResMut<NextState<LoadingState>>
+) {
     for message in reader.read() {
         match message {
-            ServerEvent::RoomCreated { address } => next_state.set(LoadingState::JoiningRoom),
+            ServerEvent::RoomCreated { address } => {
+                writer.write(ClientEvent::JoinRoom(*address));
+                next_state.set(LoadingState::JoiningRoom);
+            },
             _ => todo!(),
         }
     }

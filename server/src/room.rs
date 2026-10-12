@@ -1,5 +1,5 @@
 use std::{
-    io::{self, BufRead, BufReader}, net::SocketAddr, process::{Command, Stdio},
+    io::{self, BufRead, BufReader}, net::SocketAddr, process::{ChildStdin, ChildStdout, Command, Stdio},
 };
 
 use rand::RngExt;
@@ -7,6 +7,8 @@ use rand::RngExt;
 const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 pub struct RoomHandle {
+    pub stdin: ChildStdin,
+    pub stdout: ChildStdout,
     pub room_code: String,
     pub address: SocketAddr,
     pub players: u16,
@@ -16,6 +18,7 @@ pub struct RoomHandle {
 impl RoomHandle {
     pub fn new() -> io::Result<(Self, String)> {
         let mut room_host = Command::new("./room_host")
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
 
@@ -24,15 +27,24 @@ impl RoomHandle {
             .take()
             .expect("Stdout was not piped");
 
+        let stdin = room_host
+            .stdin
+            .take()
+            .expect("Stdin was not piped");
+
         let mut reader = BufReader::new(stdout);
         let mut room_port = String::new();
         reader.read_line(&mut room_port)?;
+
+        let stdout = reader.into_inner();
 
         let address = format!("152.69.167.180:{}", room_port.trim()).parse::<SocketAddr>().expect("Failed to parse address");
         let room_code = generate_room_code();
 
         return Ok((
             Self {
+                stdin,
+                stdout,
                 room_code: room_code.clone(),
                 address,
                 players: 0,

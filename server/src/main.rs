@@ -45,6 +45,8 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
                             code = room.regenerate_code();
                         }
 
+                        room.stdin.write(format!("{}\n", code).as_bytes()).expect("Failed to write to stdin");
+
                         let address = room.addr();
 
                         rooms.insert(code.clone(), room);
@@ -56,7 +58,7 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
                     }
                 }
             },
-            ClientRequest::JoinRoom { code } => {
+            ClientRequest::FindRoom { code } => {
                 match rooms.get(&code) {
                     Some(room) if room.players < 6 => {
                         ServerResponse::RoomFound { address: room.address }

@@ -42,10 +42,46 @@ pub enum ServerResponse {
     RoomJoinError {
         reason: JoinError,
     },
+    RoomJoined {
+        info: RoomInfo,
+    }
+}
+
+impl Sendable for ServerResponse {
+    fn to_framed_bytes(self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+
+        let serialized = wincode::serialize(&self).expect("Failed to serialize message");
+        let size = serialized.len().to_be_bytes();
+
+        bytes.extend(&size);
+        bytes.extend(&serialized);
+
+        bytes
+    }
 }
 
 #[derive(Debug, SchemaRead, SchemaWrite)]
 pub enum JoinError {
     RoomFull,
     RoomDoesntExist,
+}
+
+#[derive(Debug, SchemaRead, SchemaWrite)]
+pub struct RoomInfo {
+    pub code: String,
+}
+
+impl Sendable for RoomInfo {
+    fn to_framed_bytes(self) -> Vec<u8> {
+       let mut bytes: Vec<u8> = Vec::new();
+
+        let serialized = wincode::serialize(&self).expect("Failed to serialize message");
+        let size = serialized.len().to_be_bytes();
+
+        bytes.extend(&size);
+        bytes.extend(&serialized);
+
+        bytes
+    }
 }
