@@ -7,6 +7,6 @@ edition = "2024"
 opt-level = 3
 
 [dependencies]
-bevy = "0.19.1"
+bevy = {version = "0.19.1", features = ["debug"]}
 common = { path = "../common" }
 wincode = {version = "0.6.1", features = ["derive"] }

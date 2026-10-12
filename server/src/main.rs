@@ -16,6 +16,7 @@ fn main() {
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
+        println!("New connection");
 
         if let Err(e) = handle_connection(stream, &mut rooms) {
             eprintln!("There was an error with the connection: {e};");
@@ -44,9 +45,11 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
                             code = room.regenerate_code();
                         }
 
+                        let address = room.addr();
+
                         rooms.insert(code.clone(), room);
 
-                        ServerResponse::RoomCreated { code }
+                        ServerResponse::RoomCreated { address }
                     },
                     Err(e) => {
                         ServerResponse::RoomCreationError { error: e.to_string() }
@@ -55,7 +58,7 @@ fn handle_connection(stream: TcpStream, rooms: &mut HashMap<String, RoomHandle>)
             },
             ClientRequest::JoinRoom { code } => {
                 match rooms.get(&code) {
-                    Some(room) if !room.full => {
+                    Some(room) if room.players < 6 => {
                         ServerResponse::RoomFound { address: room.address }
                     },
                     Some(_) => {

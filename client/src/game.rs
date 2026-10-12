@@ -2,29 +2,23 @@ use std::num::NonZeroU8;
 
 use bevy::{asset::LoadState, prelude::*, window::{PrimaryWindow, WindowMode, WindowResolution}};
 
+use crate::ui::messages::ServerEvent;
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
             .init_state::<GameState>()
+            .add_sub_state::<LoadingState>()
             .add_systems(Startup, startup)
-            .add_systems(
-                Update,
-                (
-                    check_assets.run_if(in_state(GameState::Startup)),
-                    draw_main_menu_bg.run_if(in_state(GameState::MainMenu))
-                )
-            )
+            .add_systems(Update, (
+                check_assets.run_if(in_state(GameState::Startup)),
+                draw_main_menu_bg.run_if(in_state(GameState::MainMenu)),
+                (draw_loading_screen, check_server_events).run_if(in_state(GameState::Loading)),
+            ))
             .add_systems(OnEnter(GameState::MainMenu), create_window);
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum LoadingState {
-    CreatingRoom,
-    FindingRoom,
-    JoiningRoom,
 }
 
 #[derive(States, Debug, Hash, Eq, PartialEq, Clone, Copy, Default)]
@@ -32,9 +26,18 @@ pub enum GameState {
     #[default]
     Startup,
     MainMenu,
-    Loading(LoadingState),
+    Loading,
     Lobby,
     Game,
+}
+
+#[derive(SubStates, Debug, Hash, Eq, PartialEq, Clone, Copy, Default)]
+#[source(GameState = GameState::Loading)]
+pub enum LoadingState {
+    #[default]
+    CreatingRoom,
+    FindingRoom,
+    JoiningRoom,
 }
 
 #[derive(Resource)]
@@ -44,14 +47,18 @@ pub struct MapTextures {
 }
 
 #[derive(Resource)]
-pub struct ButtonTextures {
+pub struct UiTextures {
     pub create_room: Handle<Image>,
     pub join_room: Handle<Image>,
     pub quit: Handle<Image>,
+    pub logo_text: Handle<Image>,
 }
 
 #[derive(Resource)]
 struct UnloadedImages(Vec<Handle<Image>>);
+
+#[derive(Component)]
+struct LoadingText;
 
 // pretty much just loads assets, could rename
 fn startup(
@@ -65,13 +72,16 @@ fn startup(
     let create_room: Handle<Image> = asset_server.load("create_room_button.png");
     let join_room: Handle<Image> = asset_server.load("join_room_button.png");
     let quit: Handle<Image> = asset_server.load("quit_button.png");
-    commands.insert_resource(ButtonTextures {
+    let logo_text: Handle<Image> = asset_server.load("logo_text.png");
+
+    commands.insert_resource(UiTextures {
         create_room: create_room.clone(),
         join_room: join_room.clone(),
         quit: quit.clone(),
+        logo_text: logo_text.clone(),
     });
 
-    commands.insert_resource(UnloadedImages(vec![blurred, clear, create_room, join_room, quit]));
+    commands.insert_resource(UnloadedImages(vec![blurred, clear, create_room, join_room, quit, logo_text]));
 }
 
 fn create_window(mut commands: Commands) {
@@ -84,6 +94,8 @@ fn create_window(mut commands: Commands) {
             ..default()
         }
     ));
+
+    commands.spawn(Camera2d);
 }
 
 fn draw_main_menu_bg(
@@ -94,8 +106,6 @@ fn draw_main_menu_bg(
 ) {
     if *has_run { return; };
     let Some(window) = window else { return ;};
-
-    commands.spawn(Camera2d);
 
     println!("{}*{}", window.width(), window.height());
 
@@ -108,6 +118,51 @@ fn draw_main_menu_bg(
     );
 
     *has_run = true;
+}
+
+fn draw_loading_screen(
+    mut commands: Commands,
+    state: Res<State<LoadingState>>,
+    mut text_q: Query<&mut Text, With<LoadingText>>,
+    mut last_state: Local<Option<LoadingState>>,
+) {
+    if *last_state == None {
+        *last_state = Some(state.get().clone());
+    }
+
+    let message = match state.get() {
+        LoadingState::CreatingRoom => "Creating room...",
+        LoadingState::FindingRoom => "Finding room...",
+        LoadingState::JoiningRoom => "Joining room..."
+    };
+
+    if text_q.is_empty() {
+        commands.spawn((
+            DespawnOnExit(GameState::Loading),
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+        )).with_child((
+            LoadingText,
+            Text::new(message),
+            TextFont {
+                font_size: FontSize::Px(40.0),
+                ..default()
+            },
+            TextColor(Color::WHITE),
+        ));
+    } else {
+        if &last_state.unwrap() != state.get() {
+            if let Ok(mut text) = text_q.single_mut() {
+                text.0 = message.to_string();
+            }
+            *last_state = Some(state.get().clone());
+        }
+    }
 }
 
 // why the freak are assets loaded asynchronously
@@ -135,4 +190,13 @@ fn check_assets(
     if updated_vec.is_empty() { next_state.set(GameState::MainMenu) } // No more assets left to load finally
 
     images.0 = updated_vec;
+}
+
+fn check_server_events(mut reader: MessageReader<ServerEvent>, mut next_state: ResMut<NextState<LoadingState>>) {
+    for message in reader.read() {
+        match message {
+            ServerEvent::RoomCreated { address } => next_state.set(LoadingState::JoiningRoom),
+            _ => todo!(),
+        }
+    }
 }

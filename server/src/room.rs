@@ -9,7 +9,7 @@ const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 pub struct RoomHandle {
     pub room_code: String,
     pub address: SocketAddr,
-    pub full: bool,
+    pub players: u16,
     pub alive: bool,
 }
 
@@ -35,7 +35,7 @@ impl RoomHandle {
             Self {
                 room_code: room_code.clone(),
                 address,
-                full: false,
+                players: 0,
                 alive: false,
             },
             room_code
@@ -46,6 +46,10 @@ impl RoomHandle {
         let new_code = generate_room_code();
         self.room_code = new_code.clone();
         new_code
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.address.clone()
     }
 }
 
